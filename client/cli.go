@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"ddz/ui"
 	"ddz/user"
 	"encoding/json"
@@ -10,6 +11,7 @@ import (
 	"github.com/gorilla/websocket"
 	"os"
 	"sync"
+	"time"
 )
 
 var (
@@ -63,8 +65,9 @@ func handle(conn *websocket.Conn, p []byte) {
 		println(msg.Desc)
 		ui.Println(ui.Rend(msg.Hand.Cards))
 	case user.MessageTypeGetCards:
-		println("请输入您要出的出牌(回车结束):")
-		input(conn, user.MessageTypeGetCards)
+		println("请输入您要出的出牌(30秒出牌时间，回车结束):")
+		//input(conn, user.MessageTypeGetCards)
+		withTimeoutInput(conn, user.MessageTypeGetCards, 30*time.Second)
 	case user.MessageTypeNotice:
 		println(msg.Desc)
 		ui.Println(ui.Rend(msg.Hand.Cards))
@@ -75,6 +78,25 @@ func handle(conn *websocket.Conn, p []byte) {
 		println(msg.Desc)
 	default:
 		println("消息：", string(p))
+	}
+}
+
+func withTimeoutInput(conn *websocket.Conn, t int, timeout time.Duration) {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	resultCh := make(chan int, 1)
+
+	go func() {
+		input(conn, t)
+		resultCh <- 1
+	}()
+
+	select {
+	case <-ctx.Done():
+		println("已超时，自动出牌或弃牌")
+	case <-resultCh:
+		return
 	}
 }
 
